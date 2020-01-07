@@ -268,6 +268,9 @@ func qscOfPL(pl *rmtypesv1a1.PriorityLevelConfiguration, requestWaitLimit time.D
 	qsConfig := fq.QueueSetConfig{Name: pl.Name,
 		RequestWaitLimit: requestWaitLimit}
 	var err error
+	if pl.Spec.Limited == nil {
+		return qsConfig, nil
+	}
 	if qc := pl.Spec.Limited.LimitResponse.Queuing; qc != nil {
 		dealer, e1 := shufflesharding.NewDealer(int(qc.Queues), int(qc.HandSize))
 		if e1 != nil {

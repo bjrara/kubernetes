@@ -17,8 +17,6 @@ limitations under the License.
 package bootstrap
 
 import (
-	"math"
-
 	rmv1a1 "k8s.io/api/flowcontrol/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apiserver/pkg/authentication/user"
@@ -63,7 +61,7 @@ var (
 	DefaultFlowSchemaDefault = NewFSAllGroups(
 		rmv1a1.FlowSchemaNameCatchAll,
 		rmv1a1.PriorityLevelConfigurationNameCatchAll,
-		math.MaxInt32, rmv1a1.FlowDistinguisherMethodByUserType,
+		10000, rmv1a1.FlowDistinguisherMethodByUserType,
 		user.AllUnauthenticated, user.AllAuthenticated,
 	)
 )
