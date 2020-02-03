@@ -28,7 +28,8 @@ ALLOW_PRIVILEGED=${ALLOW_PRIVILEGED:-""}
 DENY_SECURITY_CONTEXT_ADMISSION=${DENY_SECURITY_CONTEXT_ADMISSION:-""}
 PSP_ADMISSION=${PSP_ADMISSION:-""}
 NODE_ADMISSION=${NODE_ADMISSION:-""}
-RUNTIME_CONFIG=${RUNTIME_CONFIG:-""}
+RUNTIME_CONFIG=${RUNTIME_CONFIG:-"flowcontrol.apiserver.k8s.io/v1alpha1=true"}
+#RUNTIME_CONFIG=${RUNTIME_CONFIG:-"api/all=true"}
 KUBELET_AUTHORIZATION_WEBHOOK=${KUBELET_AUTHORIZATION_WEBHOOK:-""}
 KUBELET_AUTHENTICATION_WEBHOOK=${KUBELET_AUTHENTICATION_WEBHOOK:-""}
 POD_MANIFEST_PATH=${POD_MANIFEST_PATH:-"/var/run/kubernetes/static-pods"}
@@ -81,7 +82,7 @@ EXTERNAL_CLOUD_VOLUME_PLUGIN=${EXTERNAL_CLOUD_VOLUME_PLUGIN:-""}
 CLOUD_PROVIDER=${CLOUD_PROVIDER:-""}
 CLOUD_CONFIG=${CLOUD_CONFIG:-""}
 KUBELET_PROVIDER_ID=${KUBELET_PROVIDER_ID:-"$(hostname)"}
-FEATURE_GATES=${FEATURE_GATES:-"AllAlpha=false"}
+FEATURE_GATES=${FEATURE_GATES:-"AllAlpha=false,APIPriorityAndFairness=true"}
 STORAGE_BACKEND=${STORAGE_BACKEND:-"etcd3"}
 STORAGE_MEDIA_TYPE=${STORAGE_MEDIA_TYPE:-"application/vnd.kubernetes.protobuf"}
 # preserve etcd data. you also need to set ETCD_DIR.
@@ -118,7 +119,7 @@ DISABLE_ADMISSION_PLUGINS=${DISABLE_ADMISSION_PLUGINS:-""}
 ADMISSION_CONTROL_CONFIG_FILE=${ADMISSION_CONTROL_CONFIG_FILE:-""}
 
 # START_MODE can be 'all', 'kubeletonly', 'nokubelet', or 'nokubeproxy'
-START_MODE=${START_MODE:-"all"}
+START_MODE=${START_MODE:-"nokubelet"}
 
 # A list of controllers to enable
 KUBE_CONTROLLERS="${KUBE_CONTROLLERS:-"*"}"
@@ -219,7 +220,7 @@ KUBELET_HOST=${KUBELET_HOST:-"127.0.0.1"}
 # By default only allow CORS for requests on localhost
 API_CORS_ALLOWED_ORIGINS=${API_CORS_ALLOWED_ORIGINS:-/127.0.0.1(:[0-9]+)?$,/localhost(:[0-9]+)?$}
 KUBELET_PORT=${KUBELET_PORT:-10250}
-LOG_LEVEL=${LOG_LEVEL:-3}
+LOG_LEVEL=${LOG_LEVEL:-7}
 # Use to increase verbosity on particular files, e.g. LOG_SPEC=token_controller*=5,other_controller*=4
 LOG_SPEC=${LOG_SPEC:-""}
 LOG_DIR=${LOG_DIR:-"/tmp"}
@@ -239,6 +240,10 @@ ROOT_CA_FILE=${CERT_DIR}/server-ca.crt
 ROOT_CA_KEY=${CERT_DIR}/server-ca.key
 CLUSTER_SIGNING_CERT_FILE=${CLUSTER_SIGNING_CERT_FILE:-"${ROOT_CA_FILE}"}
 CLUSTER_SIGNING_KEY_FILE=${CLUSTER_SIGNING_KEY_FILE:-"${ROOT_CA_KEY}"}
+
+# Token authentication file
+TOKEN_AUTH_FILE=${TOKEN_AUTH_FILE:-"/tmp/token_auth_file.csv"}
+
 # Reuse certs will skip generate new ca/cert files under CERT_DIR
 # it's useful with PRESERVE_ETCD=true because new ca will make existed service account secrets invalided
 REUSE_CERTS=${REUSE_CERTS:-false}
@@ -502,6 +507,12 @@ function start_apiserver {
     if [[ -n "${AUTHORIZATION_MODE}" ]]; then
       authorizer_arg="--authorization-mode=${AUTHORIZATION_MODE}"
     fi
+
+    token_auth_file=""
+    if [[ -n "${TOKEN_AUTH_FILE}" ]]; then
+      token_auth_file="--token-auth-file=${TOKEN_AUTH_FILE}"
+    fi
+
     priv_arg=""
     if [[ -n "${ALLOW_PRIVILEGED}" ]]; then
       priv_arg="--allow-privileged=${ALLOW_PRIVILEGED}"
@@ -549,7 +560,7 @@ EOF
 
     APISERVER_LOG=${LOG_DIR}/kube-apiserver.log
     # shellcheck disable=SC2086
-    ${CONTROLPLANE_SUDO} "${GO_OUT}/kube-apiserver" "${authorizer_arg}" "${priv_arg}" ${runtime_config} \
+    ${CONTROLPLANE_SUDO} "${GO_OUT}/kube-apiserver" "${authorizer_arg}" "${token_auth_file}" "${priv_arg}" ${runtime_config} \
       ${cloud_config_arg} \
       "${advertise_address}" \
       "${node_port_range}" \
@@ -1060,10 +1071,8 @@ if [[ "${START_MODE}" != "nokubelet" ]]; then
     esac
 fi
 
-if [[ "${START_MODE}" != "kubeletonly" ]]; then
-  if [[ "${START_MODE}" != "nokubeproxy" ]]; then
-    start_kubeproxy
-  fi
+if [[ "${START_MODE}" == "all" ]]; then
+  start_kubeproxy
 fi
 if [[ -n "${PSP_ADMISSION}" && "${AUTHORIZATION_MODE}" = *RBAC* ]]; then
   create_psp_policy
