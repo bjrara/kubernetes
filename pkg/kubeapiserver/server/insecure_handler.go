@@ -17,6 +17,8 @@ limitations under the License.
 package server
 
 import (
+	"k8s.io/apiserver/pkg/features"
+	"k8s.io/apiserver/pkg/util/feature"
 	"net/http"
 
 	genericapifilters "k8s.io/apiserver/pkg/endpoints/filters"
@@ -30,7 +32,7 @@ func BuildInsecureHandlerChain(apiHandler http.Handler, c *server.Config) http.H
 	// Temporarily disable APIPriorityAndFairness during development
 	// so that /debug/pprof works even while this feature is totally
 	// hosed
-	if c.FlowControl != nil && false {
+	if feature.DefaultFeatureGate.Enabled(features.APIPriorityAndFairness) {
 		handler = genericfilters.WithPriorityAndFairness(handler, c.LongRunningFunc, c.FlowControl)
 	} else {
 		handler = genericfilters.WithMaxInFlightLimit(handler, c.MaxRequestsInFlight, c.MaxMutatingRequestsInFlight, c.LongRunningFunc)
